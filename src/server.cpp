@@ -275,12 +275,14 @@ void server_new_pointer(struct d1_server *server, struct wlr_input_device *devic
 	 * is proxied through wlr_cursor. On another compositor, you might take this
 	 * opportunity to do libinput configuration on the device to set
 	 * acceleration, etc. */
+	// TODO: Libinput
 	wlr_cursor_attach_input_device(server->cursor, device);
 }
 
 void server_new_input(struct wl_listener *listener, void *data) {
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
+	// TODO: Touchpad and tablet Support
 	struct d1_server *server =
 		wl_container_of(listener, server, new_input);
 	struct wlr_input_device *device = static_cast<wlr_input_device*>(data);
@@ -571,56 +573,6 @@ void server_new_output(struct wl_listener *listener, void *data) {
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 }
 
-void xdg_toplevel_map(struct wl_listener *listener, void *data) {
-	/* Called when the surface is mapped, or ready to display on-screen. */
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, map);
-
-	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
-
-	focus_toplevel(toplevel);
-}
-
-void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
-	/* Called when the surface is unmapped, and should no longer be shown. */
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
-
-	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
-	if (toplevel == toplevel->server->grabbed_toplevel) {
-		reset_cursor_mode(toplevel->server);
-	}
-
-	wl_list_remove(&toplevel->link);
-}
-
-void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
-	/* Called when a new surface state is committed. */
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, commit);
-
-	if (toplevel->xdg_toplevel->base->initial_commit) {
-		/* When a xdg_surface performs an initial commit, the compositor must
-		 * reply with a configure so the client can map the surface. tinywl
-		 * configures the xdg_toplevel with 0,0 size to let the client pick the
-		 * dimensions itself. */
-		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
-	}
-}
-
-void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
-	/* Called when the xdg_toplevel is destroyed. */
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
-
-	wl_list_remove(&toplevel->map.link);
-	wl_list_remove(&toplevel->unmap.link);
-	wl_list_remove(&toplevel->commit.link);
-	wl_list_remove(&toplevel->destroy.link);
-	wl_list_remove(&toplevel->request_move.link);
-	wl_list_remove(&toplevel->request_resize.link);
-	wl_list_remove(&toplevel->request_maximize.link);
-	wl_list_remove(&toplevel->request_fullscreen.link);
-
-	free(toplevel);
-}
-
 void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propegating pointer events to clients and instead
@@ -651,85 +603,14 @@ void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, u
 	}
 }
 
-void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {
-	/* This event is raised when a client would like to begin an interactive
-	 * move, typically because the user clicked on their client-side
-	 * decorations. Note that a more sophisticated compositor should check the
-	 * provided serial against a list of button press serials sent to this
-	 * client, to prevent the client from requesting this whenever they want. */
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, request_move);
-	begin_interactive(toplevel, D1_CURSOR_MOVE, 0);
-}
 
-void xdg_toplevel_request_resize(struct wl_listener *listener, void *data) {
-	/* This event is raised when a client would like to begin an interactive
-	 * resize, typically because the user clicked on their client-side
-	 * decorations. Note that a more sophisticated compositor should check the
-	 * provided serial against a list of button press serials sent to this
-	 * client, to prevent the client from requesting this whenever they want. */
-	struct wlr_xdg_toplevel_resize_event *event = static_cast<wlr_xdg_toplevel_resize_event*>(data);
-	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, request_resize);
-	begin_interactive(toplevel, D1_CURSOR_RESIZE, event->edges);
-}
-
-void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
-	/* This event is raised when a client would like to maximize itself,
-	 * typically because the user clicked on the maximize button on client-side
-	 * decorations. tinywl doesn't support maximization, but to conform to
-	 * xdg-shell protocol we still must send a configure.
-	 * wlr_xdg_surface_schedule_configure() is used to send an empty reply.
-	 * However, if the request was sent before an initial commit, we don't do
-	 * anything and let the client finish the initial surface setup. */
-	struct d1_toplevel *toplevel =
-		wl_container_of(listener, toplevel, request_maximize);
-	if (toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
-	}
-}
-
-void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
-	/* Just as with request_maximize, we must send a configure here. */
-	struct d1_toplevel *toplevel =
-		wl_container_of(listener, toplevel, request_fullscreen);
-	if (toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
-	}
-}
 
 void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client creates a new toplevel (application window). */
 	struct d1_server *server = wl_container_of(listener, server, new_xdg_toplevel);
 	struct wlr_xdg_toplevel *xdg_toplevel = static_cast<wlr_xdg_toplevel*>(data);
 
-	/* Allocate a tinywl_toplevel for this surface */
-	struct d1_toplevel *toplevel = static_cast<struct d1_toplevel *>(calloc(1, sizeof(*toplevel)));
-	toplevel->server = server;
-	toplevel->xdg_toplevel = xdg_toplevel;
-	toplevel->scene_tree =
-		wlr_scene_xdg_surface_create(&toplevel->server->scene->tree, xdg_toplevel->base);
-	toplevel->scene_tree->node.data = toplevel;
-	xdg_toplevel->base->data = toplevel->scene_tree;
-
-	/* Listen to the various events it can emit */
-	toplevel->map.notify = xdg_toplevel_map;
-	wl_signal_add(&xdg_toplevel->base->surface->events.map, &toplevel->map);
-	toplevel->unmap.notify = xdg_toplevel_unmap;
-	wl_signal_add(&xdg_toplevel->base->surface->events.unmap, &toplevel->unmap);
-	toplevel->commit.notify = xdg_toplevel_commit;
-	wl_signal_add(&xdg_toplevel->base->surface->events.commit, &toplevel->commit);
-
-	toplevel->destroy.notify = xdg_toplevel_destroy;
-	wl_signal_add(&xdg_toplevel->events.destroy, &toplevel->destroy);
-
-	/* cotd */
-	toplevel->request_move.notify = xdg_toplevel_request_move;
-	wl_signal_add(&xdg_toplevel->events.request_move, &toplevel->request_move);
-	toplevel->request_resize.notify = xdg_toplevel_request_resize;
-	wl_signal_add(&xdg_toplevel->events.request_resize, &toplevel->request_resize);
-	toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
-	wl_signal_add(&xdg_toplevel->events.request_maximize, &toplevel->request_maximize);
-	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
-	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
+	new d1_toplevel(server, xdg_toplevel);
 }
 
 void xdg_popup_commit(struct wl_listener *listener, void *data) {
@@ -737,11 +618,7 @@ void xdg_popup_commit(struct wl_listener *listener, void *data) {
 	struct d1_popup *popup = wl_container_of(listener, popup, commit);
 
 	if (popup->xdg_popup->base->initial_commit) {
-		/* When a xdg_surface performs an initial commit, the compositor must
-		 * reply with a configure so the client can map the surface.
-		 * tinywl sends an empty configure. A more sophisticated compositor
-		 * might change a xdg_popup's geometry to ensure it's not positioned
-		 * off-screen, for example. */
+		// TODO: Check if popup position is offscreen
 		wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
 	}
 }

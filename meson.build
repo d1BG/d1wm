@@ -61,6 +61,7 @@ executable(
                 'src/server.cpp',
                 'src/output.cpp',
                 'src/cursor.cpp',
+                'src/toplevel.cpp',
                 protocol_sources,
                 protocol_code,
         ],
