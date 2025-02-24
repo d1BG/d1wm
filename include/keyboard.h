@@ -1,6 +1,6 @@
 #include "wlr.h"
 
-struct tinywl_keyboard {
+struct d1_keyboard {
     struct wl_list link;
     struct d1_server *server;
     struct wlr_keyboard *wlr_keyboard;

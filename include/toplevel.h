@@ -1,6 +1,6 @@
 #include "wlr.h"
 
-struct tinywl_toplevel {
+struct d1_toplevel {
     struct wl_list link;
     struct d1_server *server;
     struct wlr_xdg_toplevel *xdg_toplevel;

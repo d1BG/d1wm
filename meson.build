@@ -59,6 +59,7 @@ executable(
         [
                 'src/main.cpp',
                 'src/server.cpp',
+                'src/output.cpp',
                 protocol_sources,
                 protocol_code,
         ],

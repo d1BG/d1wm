@@ -22,9 +22,5 @@ int main(int argc, char *argv[]) {
 
 	struct d1_server *server = new d1_server(startup_cmd);
 	delete server;
-
-
-
-
 	return 0;
 }
