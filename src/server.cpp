@@ -48,17 +48,7 @@ d1_server::d1_server(char *startupcmd) {
 
     cursor_mgr = wlr_xcursor_manager_create(nullptr, 24);
     cursor_mode = D1_CURSOR_PASSTHROUGH;
-
-	cursor_motion.notify = server_cursor_motion;
-	wl_signal_add(&cursor->events.motion, &cursor_motion);
-	cursor_motion_absolute.notify = server_cursor_motion_absolute;
-	wl_signal_add(&cursor->events.motion_absolute, &cursor_motion_absolute);
-	cursor_button.notify = server_cursor_button;
-	wl_signal_add(&cursor->events.button, &cursor_button);
-	cursor_axis.notify = server_cursor_axis;
-	wl_signal_add(&cursor->events.axis, &cursor_axis);
-	cursor_frame.notify = server_cursor_frame;
-	wl_signal_add(&cursor->events.frame, &cursor_frame);
+	new d1_cursor(this);
 
     seat = wlr_seat_create(wl_display, "seat0");
 
@@ -103,12 +93,6 @@ d1_server::~d1_server() {
     wl_list_remove(&new_xdg_toplevel.link);
     wl_list_remove(&new_xdg_popup.link);
 
-    wl_list_remove(&cursor_motion.link);
-    wl_list_remove(&cursor_motion_absolute.link);
-    wl_list_remove(&cursor_button.link);
-    wl_list_remove(&cursor_axis.link);
-    wl_list_remove(&cursor_frame.link);
-
     wl_list_remove(&new_input.link);
     wl_list_remove(&request_cursor.link);
     wl_list_remove(&request_set_selection.link);
@@ -124,7 +108,7 @@ d1_server::~d1_server() {
     wl_display_destroy(wl_display);
 }
 
-static void focus_toplevel(struct d1_toplevel *toplevel) {
+void focus_toplevel(struct d1_toplevel *toplevel) {
 	/* Note: this function only deals with keyboard focus. */
 	if (toplevel == nullptr) {
 		return;
@@ -167,7 +151,7 @@ static void focus_toplevel(struct d1_toplevel *toplevel) {
 	}
 }
 
-static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) {
+void keyboard_handle_modifiers(struct wl_listener *listener, void *data) {
 	/* This event is raised when a modifier key, such as shift or alt, is
 	 * pressed. We simply communicate this to the client. */
 	struct d1_keyboard *keyboard =
@@ -184,7 +168,7 @@ static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) 
 		&keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct d1_server *server, xkb_keysym_t sym) {
+bool handle_keybinding(struct d1_server *server, xkb_keysym_t sym) {
 
 	switch (sym) {
 	case XKB_KEY_Escape:
@@ -206,7 +190,7 @@ static bool handle_keybinding(struct d1_server *server, xkb_keysym_t sym) {
 
 }
 
-static void keyboard_handle_key(struct wl_listener *listener, void *data) {
+void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	/* This event is raised when a key is pressed or released. */
 	struct d1_keyboard *keyboard =
 		wl_container_of(listener, keyboard, key);
@@ -240,7 +224,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	}
 }
 
-static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
+void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
 	/* This event is raised by the keyboard base wlr_input_device to signal
 	 * the destruction of the wlr_keyboard. It will no longer receive events
 	 * and should be destroyed.
@@ -254,7 +238,7 @@ static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
 	free(keyboard);
 }
 
-static void server_new_keyboard(struct d1_server *server,struct wlr_input_device *device) {
+void server_new_keyboard(struct d1_server *server,struct wlr_input_device *device) {
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
 	struct d1_keyboard *keyboard = static_cast<struct d1_keyboard *>(calloc(1, sizeof(*keyboard)));
@@ -286,7 +270,7 @@ static void server_new_keyboard(struct d1_server *server,struct wlr_input_device
 	wl_list_insert(&server->keyboards, &keyboard->link);
 }
 
-static void server_new_pointer(struct d1_server *server, struct wlr_input_device *device) {
+void server_new_pointer(struct d1_server *server, struct wlr_input_device *device) {
 	/* We don't do anything special with pointers. All of our pointer handling
 	 * is proxied through wlr_cursor. On another compositor, you might take this
 	 * opportunity to do libinput configuration on the device to set
@@ -294,7 +278,7 @@ static void server_new_pointer(struct d1_server *server, struct wlr_input_device
 	wlr_cursor_attach_input_device(server->cursor, device);
 }
 
-static void server_new_input(struct wl_listener *listener, void *data) {
+void server_new_input(struct wl_listener *listener, void *data) {
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
 	struct d1_server *server =
@@ -320,7 +304,7 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 	wlr_seat_set_capabilities(server->seat, caps);
 }
 
-static void seat_request_cursor(struct wl_listener *listener, void *data) {
+void seat_request_cursor(struct wl_listener *listener, void *data) {
 	struct d1_server *server = wl_container_of(
 			listener, server, request_cursor);
 	/* This event is raised by the seat when a client provides a cursor image */
@@ -340,7 +324,7 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	}
 }
 
-static void seat_request_set_selection(struct wl_listener *listener, void *data) {
+void seat_request_set_selection(struct wl_listener *listener, void *data) {
 	/* This event is raised by the seat when a client wants to set the selection,
 	 * usually when the user copies something. wlroots allows compositors to
 	 * ignore such requests if they so choose, but in tinywl we always honor
@@ -351,7 +335,7 @@ static void seat_request_set_selection(struct wl_listener *listener, void *data)
 	wlr_seat_set_selection(server->seat, event->source, event->serial);
 }
 
-static struct d1_toplevel *desktop_toplevel_at(
+struct d1_toplevel *desktop_toplevel_at(
 		struct d1_server *server, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy) {
 	/* This returns the topmost node in the scene at the given layout coords.
@@ -379,13 +363,13 @@ static struct d1_toplevel *desktop_toplevel_at(
 	return static_cast<struct d1_toplevel *>(tree->node.data);
 }
 
-static void reset_cursor_mode(struct d1_server *server) {
+void reset_cursor_mode(struct d1_server *server) {
 	/* Reset the cursor mode to passthrough. */
 	server->cursor_mode = D1_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = nullptr;
 }
 
-static void process_cursor_move(struct d1_server *server) {
+void process_cursor_move(struct d1_server *server) {
 	/* Move the grabbed toplevel to the new position. */
 	struct d1_toplevel *toplevel = server->grabbed_toplevel;
 	wlr_scene_node_set_position(&toplevel->scene_tree->node,
@@ -393,7 +377,7 @@ static void process_cursor_move(struct d1_server *server) {
 		server->cursor->y - server->grab_y);
 }
 
-static void process_cursor_resize(struct d1_server *server) {
+void process_cursor_resize(struct d1_server *server) {
 	/*
 	 * Resizing the grabbed toplevel can be a little bit complicated, because we
 	 * could be resizing from any corner or edge. This not only resizes the
@@ -444,7 +428,7 @@ static void process_cursor_resize(struct d1_server *server) {
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 }
 
-static void process_cursor_motion(struct d1_server *server, uint32_t time) {
+void process_cursor_motion(struct d1_server *server, uint32_t time) {
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (server->cursor_mode == D1_CURSOR_MOVE) {
 		process_cursor_move(server);
@@ -487,83 +471,7 @@ static void process_cursor_motion(struct d1_server *server, uint32_t time) {
 	}
 }
 
-static void server_cursor_motion(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits a _relative_
-	 * pointer motion event (i.e. a delta) */
-	struct d1_server *server =
-		wl_container_of(listener, server, cursor_motion);
-	struct wlr_pointer_motion_event *event = static_cast<wlr_pointer_motion_event*>(data);
-	/* The cursor doesn't move unless we tell it to. The cursor automatically
-	 * handles constraining the motion to the output layout, as well as any
-	 * special configuration applied for the specific input device which
-	 * generated the event. You can pass nullptr for the device if you want to move
-	 * the cursor around without any input. */
-	wlr_cursor_move(server->cursor, &event->pointer->base,
-			event->delta_x, event->delta_y);
-	process_cursor_motion(server, event->time_msec);
-}
-
-static void server_cursor_motion_absolute(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits an _absolute_
-	 * motion event, from 0..1 on each axis. This happens, for example, when
-	 * wlroots is running under a Wayland window rather than KMS+DRM, and you
-	 * move the mouse over the window. You could enter the window from any edge,
-	 * so we have to warp the mouse there. There is also some hardware which
-	 * emits these events. */
-	struct d1_server *server =
-		wl_container_of(listener, server, cursor_motion_absolute);
-	struct wlr_pointer_motion_absolute_event *event = static_cast<wlr_pointer_motion_absolute_event*>(data);
-	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x,
-		event->y);
-	process_cursor_motion(server, event->time_msec);
-}
-
-static void server_cursor_button(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits a button
-	 * event. */
-	struct d1_server *server =
-		wl_container_of(listener, server, cursor_button);
-	struct wlr_pointer_button_event *event = static_cast<wlr_pointer_button_event*>(data);
-	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(server->seat,
-			event->time_msec, event->button, event->state);
-	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
-		/* If you released any buttons, we exit interactive move/resize mode. */
-		reset_cursor_mode(server);
-	} else {
-		/* Focus that client if the button was _pressed_ */
-		double sx, sy;
-		struct wlr_surface *surface = nullptr;
-		struct d1_toplevel *toplevel = desktop_toplevel_at(server,
-				server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-		focus_toplevel(toplevel);
-	}
-}
-
-static void server_cursor_axis(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits an axis event,
-	 * for example when you move the scroll wheel. */
-	struct d1_server *server =
-		wl_container_of(listener, server, cursor_axis);
-	struct wlr_pointer_axis_event *event = static_cast<wlr_pointer_axis_event*>(data);
-	/* Notify the client with pointer focus of the axis event. */
-	wlr_seat_pointer_notify_axis(server->seat,
-			event->time_msec, event->orientation, event->delta,
-			event->delta_discrete, event->source, event->relative_direction);
-}
-
-static void server_cursor_frame(struct wl_listener *listener, void *data) {
-	/* This event is forwarded by the cursor when a pointer emits a frame
-	 * event. Frame events are sent after regular pointer events to group
-	 * multiple events together. For instance, two axis events may happen at the
-	 * same time, in which case a frame event won't be sent in between. */
-	struct d1_server *server =
-		wl_container_of(listener, server, cursor_frame);
-	/* Notify the client with pointer focus of the frame event. */
-	wlr_seat_pointer_notify_frame(server->seat);
-}
-
-static void output_frame(struct wl_listener *listener, void *data) {
+void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	struct d1_output *output = wl_container_of(listener, output, frame);
@@ -580,7 +488,7 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	wlr_scene_output_send_frame_done(scene_output, &now);
 }
 
-static void output_request_state(struct wl_listener *listener, void *data) {
+void output_request_state(struct wl_listener *listener, void *data) {
 	/* This function is called when the backend requests a new state for
 	 * the output. For example, Wayland and X11 backends request a new mode
 	 * when the output window is resized. */
@@ -589,7 +497,7 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	wlr_output_commit_state(output->wlr_output, event->state);
 }
 
-static void output_destroy(struct wl_listener *listener, void *data) {
+void output_destroy(struct wl_listener *listener, void *data) {
 	struct d1_output *output = wl_container_of(listener, output, destroy);
 
 	wl_list_remove(&output->frame.link);
@@ -599,7 +507,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	free(output);
 }
 
-static void server_new_output(struct wl_listener *listener, void *data) {
+void server_new_output(struct wl_listener *listener, void *data) {
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct d1_server *server =
@@ -663,7 +571,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 }
 
-static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
+void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, map);
 
@@ -672,7 +580,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	focus_toplevel(toplevel);
 }
 
-static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
+void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
 
@@ -684,7 +592,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->link);
 }
 
-static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
+void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	/* Called when a new surface state is committed. */
 	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, commit);
 
@@ -697,7 +605,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	}
 }
 
-static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
+void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	/* Called when the xdg_toplevel is destroyed. */
 	struct d1_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
 
@@ -713,7 +621,7 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	free(toplevel);
 }
 
-static void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, uint32_t edges) {
+void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propegating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
@@ -743,7 +651,7 @@ static void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode 
 	}
 }
 
-static void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {
+void xdg_toplevel_request_move(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client would like to begin an interactive
 	 * move, typically because the user clicked on their client-side
 	 * decorations. Note that a more sophisticated compositor should check the
@@ -753,7 +661,7 @@ static void xdg_toplevel_request_move(struct wl_listener *listener, void *data) 
 	begin_interactive(toplevel, D1_CURSOR_MOVE, 0);
 }
 
-static void xdg_toplevel_request_resize(struct wl_listener *listener, void *data) {
+void xdg_toplevel_request_resize(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client would like to begin an interactive
 	 * resize, typically because the user clicked on their client-side
 	 * decorations. Note that a more sophisticated compositor should check the
@@ -764,7 +672,7 @@ static void xdg_toplevel_request_resize(struct wl_listener *listener, void *data
 	begin_interactive(toplevel, D1_CURSOR_RESIZE, event->edges);
 }
 
-static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
+void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client would like to maximize itself,
 	 * typically because the user clicked on the maximize button on client-side
 	 * decorations. tinywl doesn't support maximization, but to conform to
@@ -779,7 +687,7 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 	}
 }
 
-static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
+void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	/* Just as with request_maximize, we must send a configure here. */
 	struct d1_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_fullscreen);
@@ -788,7 +696,7 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *
 	}
 }
 
-static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
+void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client creates a new toplevel (application window). */
 	struct d1_server *server = wl_container_of(listener, server, new_xdg_toplevel);
 	struct wlr_xdg_toplevel *xdg_toplevel = static_cast<wlr_xdg_toplevel*>(data);
@@ -824,7 +732,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen, &toplevel->request_fullscreen);
 }
 
-static void xdg_popup_commit(struct wl_listener *listener, void *data) {
+void xdg_popup_commit(struct wl_listener *listener, void *data) {
 	/* Called when a new surface state is committed. */
 	struct d1_popup *popup = wl_container_of(listener, popup, commit);
 
@@ -838,7 +746,7 @@ static void xdg_popup_commit(struct wl_listener *listener, void *data) {
 	}
 }
 
-static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
+void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 	/* Called when the xdg_popup is destroyed. */
 	struct d1_popup *popup = wl_container_of(listener, popup, destroy);
 
@@ -848,7 +756,7 @@ static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 	free(popup);
 }
 
-static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
+void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	/* This event is raised when a client creates a new popup. */
 	struct wlr_xdg_popup *xdg_popup = static_cast<wlr_xdg_popup*>(data);
 
