@@ -24,7 +24,6 @@ d1_popup::d1_popup(struct wlr_xdg_popup *popup) {
 
 }
 
-
 void xdg_popup_commit(struct wl_listener *listener, void *data) {
     /* Called when a new surface state is committed. */
     struct d1_popup *popup = wl_container_of(listener, popup, commit);

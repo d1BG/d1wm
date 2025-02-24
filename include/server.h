@@ -51,9 +51,6 @@ void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, u
 
 
 
-void output_destroy(struct wl_listener *listener, void *data);
-void output_request_state(struct wl_listener *listener, void *data);
-void output_frame(struct wl_listener *listener, void *data);
 
 void process_cursor_motion(struct d1_server *server, uint32_t time); // ?cursor
 void process_cursor_resize(struct d1_server *server); // ?cursor
