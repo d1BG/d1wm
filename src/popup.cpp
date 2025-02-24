@@ -31,8 +31,6 @@ void xdg_popup_commit(struct wl_listener *listener, void *data) {
 
     if (popup->xdg_popup->base->initial_commit) {
         // TODO: Check if popup position is offscreen
-
-        wlr_log(WLR_INFO, "Committing XDG popup");
         wlr_xdg_surface_schedule_configure(popup->xdg_popup->base);
     }
 }
