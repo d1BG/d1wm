@@ -1,4 +1,5 @@
 #include "server.h"
+#include <string>
 
 d1_server::d1_server(char *startupcmd) {
     wl_display = wl_display_create();
@@ -60,12 +61,22 @@ d1_server::d1_server(char *startupcmd) {
 	request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&seat->events.request_set_selection, &request_set_selection);
 
-    // TODO: avoid socket 0
-    const char *socket = wl_display_add_socket_auto(wl_display);
-    if (!socket) {
-        wlr_backend_destroy(backend);
-        return;
-    }
+	// Avoid using "wayland-0" as display socket
+	std::string socket;
+	for (unsigned int i = 1; i <= 32; i++) {
+		socket = "wayland-" + std::to_string(i);
+		int ret = wl_display_add_socket(wl_display, socket.c_str());
+		if (!ret) {
+			break;
+		} else {
+			wlr_log(WLR_ERROR, "wl_display_add_socket for %s returned %d: skipping", socket.c_str(), ret);
+		}
+	}
+
+	if (!socket.c_str()) {
+		wlr_backend_destroy(backend);
+		return;
+	}
 
     if (!wlr_backend_start(backend)) {
         wlr_backend_destroy(backend);
@@ -73,8 +84,8 @@ d1_server::d1_server(char *startupcmd) {
         return;
     }
 
-    setenv("WAYLAND_DISPLAY", socket, true);
-    wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",socket);
+    setenv("WAYLAND_DISPLAY", socket.c_str(), true);
+    wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",socket.c_str());
 
 	if (startupcmd) {
 		if (fork() == 0) {
