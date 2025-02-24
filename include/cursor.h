@@ -21,3 +21,8 @@ struct d1_cursor {
     d1_cursor(d1_server *server);
     ~d1_cursor();
 };
+
+void process_cursor_motion(struct d1_server *server, uint32_t time);
+void process_cursor_resize(struct d1_server *server);
+void process_cursor_move(struct d1_server *server);
+void reset_cursor_mode(struct d1_server *server);

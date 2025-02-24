@@ -52,16 +52,12 @@ void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, u
 
 
 
-void process_cursor_motion(struct d1_server *server, uint32_t time); // ?cursor
-void process_cursor_resize(struct d1_server *server); // ?cursor
-void process_cursor_move(struct d1_server *server); // ?cursor
-void reset_cursor_mode(struct d1_server *server); // ?cursor
 
 struct d1_toplevel *desktop_toplevel_at(
         struct d1_server *server, double lx, double ly,
         struct wlr_surface **surface, double *sx, double *sy);
 
-void seat_request_set_selection(struct wl_listener *listener, void *data);
+void seat_request_set_selection(struct wl_listener *listener, void *data); // ?cursor
 void seat_request_cursor(struct wl_listener *listener, void *data);
 
 void keyboard_handle_destroy(struct wl_listener *listener, void *data);
