@@ -63,6 +63,7 @@ executable(
                 'src/cursor.cpp',
                 'src/toplevel.cpp',
                 'src/popup.cpp',
+                'src/keyboard.cpp',
                 protocol_sources,
                 protocol_code,
         ],

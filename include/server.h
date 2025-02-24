@@ -39,14 +39,14 @@ struct d1_server {
     d1_server(char *startupcmd);
     ~d1_server();
 };
-void server_new_xdg_toplevel(struct wl_listener *listener, void *data);
-void server_new_xdg_popup(struct wl_listener *listener, void *data);
-void server_new_output(struct wl_listener *listener, void *data);
-void server_new_input(struct wl_listener *listener, void *data);
-void server_new_pointer(struct d1_server *server, struct wlr_input_device *device);
-void server_new_keyboard(struct d1_server *server,struct wlr_input_device *device);
+void server_new_xdg_toplevel(struct wl_listener *listener, void *data);     // server
+void server_new_xdg_popup(struct wl_listener *listener, void *data);        // server
+void server_new_output(struct wl_listener *listener, void *data);       // server
+void server_new_input(struct wl_listener *listener, void *data);        // server
+void server_new_pointer(struct d1_server *server, struct wlr_input_device *device);     // server
+// void server_new_keyboard(struct d1_server *server,struct wlr_input_device *device);     // server
 
-void focus_toplevel(struct d1_toplevel *toplevel); // ?cursor
+void focus_toplevel(struct d1_toplevel *toplevel); // ?toplevel
 void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, uint32_t edges); // ?cursor
 
 
@@ -60,7 +60,3 @@ struct d1_toplevel *desktop_toplevel_at(
 void seat_request_set_selection(struct wl_listener *listener, void *data); // ?cursor
 void seat_request_cursor(struct wl_listener *listener, void *data);
 
-void keyboard_handle_destroy(struct wl_listener *listener, void *data);
-void keyboard_handle_key(struct wl_listener *listener, void *data);
-bool handle_keybinding(struct d1_server *server, xkb_keysym_t sym);
-void keyboard_handle_modifiers(struct wl_listener *listener, void *data);
