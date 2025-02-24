@@ -1,7 +1,7 @@
 #include "server.h"
 
 d1_popup::d1_popup(struct wlr_xdg_popup *popup) {
-    this->xdg_popup = popup;
+    xdg_popup = popup;
 
     /* We must add xdg popups to the scene graph so they get rendered. The
      * wlroots scene graph provides a helper for this, but to use it we must

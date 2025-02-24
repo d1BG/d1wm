@@ -2,7 +2,7 @@
 
 d1_toplevel::d1_toplevel(d1_server *server, wlr_xdg_toplevel *wlr_xdg_toplevel) {
 	this->server = server;
-	this->xdg_toplevel = wlr_xdg_toplevel;
+	xdg_toplevel = wlr_xdg_toplevel;
 
 	scene_tree =
 	wlr_scene_xdg_surface_create(&server->scene->tree, xdg_toplevel->base);
@@ -123,4 +123,105 @@ void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	if (toplevel->xdg_toplevel->base->initialized) {
 		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 	}
+}
+
+void focus_toplevel(struct d1_toplevel *toplevel) {
+	/* Note: this function only deals with keyboard focus. */
+	if (toplevel == nullptr) {
+		return;
+	}
+	struct d1_server *server = toplevel->server;
+	struct wlr_seat *seat = server->seat;
+	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
+	struct wlr_surface *surface = toplevel->xdg_toplevel->base->surface;
+	if (prev_surface == surface) {
+		/* Don't re-focus an already focused surface. */
+		return;
+	}
+	if (prev_surface) {
+		/*
+		 * Deactivate the previously focused surface. This lets the client know
+		 * it no longer has focus and the client will repaint accordingly, e.g.
+		 * stop displaying a caret.
+		 */
+		struct wlr_xdg_toplevel *prev_toplevel =
+			wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
+		if (prev_toplevel != nullptr) {
+			wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+		}
+	}
+	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+	/* Move the toplevel to the front */
+	wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	wl_list_remove(&toplevel->link);
+	wl_list_insert(&server->toplevels, &toplevel->link);
+	/* Activate the new surface */
+	wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, true);
+	/*
+	 * Tell the seat to have the keyboard enter this surface. wlroots will keep
+	 * track of this and automatically send key events to the appropriate
+	 * clients without additional work on your part.
+	 */
+	if (keyboard != nullptr) {
+		wlr_seat_keyboard_notify_enter(seat, surface,
+			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+	}
+}
+
+void begin_interactive(struct d1_toplevel *toplevel, enum d1_cursor_mode mode, uint32_t edges) {
+	/* This function sets up an interactive move or resize operation, where the
+	 * compositor stops propegating pointer events to clients and instead
+	 * consumes them itself, to move or resize windows. */
+	struct d1_server *server = toplevel->server;
+
+	server->grabbed_toplevel = toplevel;
+	server->cursor_mode = mode;
+
+	if (mode == D1_CURSOR_MOVE) {
+		server->grab_x = server->cursor->x - toplevel->scene_tree->node.x;
+		server->grab_y = server->cursor->y - toplevel->scene_tree->node.y;
+	} else {
+		struct wlr_box *geo_box = &toplevel->xdg_toplevel->base->geometry;
+
+		double border_x = (toplevel->scene_tree->node.x + geo_box->x) +
+			((edges & WLR_EDGE_RIGHT) ? geo_box->width : 0);
+		double border_y = (toplevel->scene_tree->node.y + geo_box->y) +
+			((edges & WLR_EDGE_BOTTOM) ? geo_box->height : 0);
+		server->grab_x = server->cursor->x - border_x;
+		server->grab_y = server->cursor->y - border_y;
+
+		server->grab_geobox = *geo_box;
+		server->grab_geobox.x += toplevel->scene_tree->node.x;
+		server->grab_geobox.y += toplevel->scene_tree->node.y;
+
+		server->resize_edges = edges;
+	}
+}
+
+struct d1_toplevel *desktop_toplevel_at(
+		struct d1_server *server, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy) {
+	/* This returns the topmost node in the scene at the given layout coords.
+	 * We only care about surface nodes as we are specifically looking for a
+	 * surface in the surface tree of a tinywl_toplevel. */
+	struct wlr_scene_node *node = wlr_scene_node_at(
+		&server->scene->tree.node, lx, ly, sx, sy);
+	if (node == nullptr || node->type != WLR_SCENE_NODE_BUFFER) {
+		return nullptr;
+	}
+	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(scene_buffer);
+	if (!scene_surface) {
+		return nullptr;
+	}
+
+	*surface = scene_surface->surface;
+	/* Find the node corresponding to the tinywl_toplevel at the root of this
+	 * surface tree, it is the only one for which we set the data field. */
+	struct wlr_scene_tree *tree = node->parent;
+	while (tree != nullptr && tree->node.data == nullptr) {
+		tree = tree->node.parent;
+	}
+	return static_cast<struct d1_toplevel *>(tree->node.data);
 }

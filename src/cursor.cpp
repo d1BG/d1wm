@@ -2,8 +2,8 @@
 
 d1_cursor::d1_cursor(struct d1_server *server) {
 	this->server = server;
-	this->cursor = server->cursor;
-	this->cursor_mgr = server->cursor_mgr;
+	cursor = server->cursor;
+	cursor_mgr = server->cursor_mgr;
 
     cursor_motion.notify = [](wl_listener *listener, void *data) {
     	/* This event is forwarded by the cursor when a pointer emits a _relative_
